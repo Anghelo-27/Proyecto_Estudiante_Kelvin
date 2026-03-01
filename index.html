@@ -1,0 +1,962 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Operación Ojo de Águila: Vigilancia Activa</title>
+    <style>
+        :root {
+            /* Colores de la interfaz Retro/Consola */
+            --bg-color: #222;
+            --screen-bg: #444; 
+            --ui-color: #00ff00; /* Verde consola clásico */
+            --alert-color: #ff3333;
+            --ui-font: 'Courier New', Courier, monospace;
+            --panel-bg: #1a1a1a;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--ui-color);
+            font-family: var(--ui-font);
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            user-select: none;
+            image-rendering: pixelated; /* Asegura el look pixelado */
+        }
+
+        /* HEADER & UI */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 20px;
+            background: var(--panel-bg);
+            border-bottom: 3px solid var(--ui-color);
+            box-shadow: 0 0 10px rgba(0,255,0,0.5);
+            font-size: 1.1rem;
+            z-index: 101;
+        }
+
+        .logo { font-weight: bold; text-transform: uppercase; letter-spacing: 1px; }
+        .level-info { font-size: 1.1rem; }
+        .timer { font-size: 1.4rem; color: var(--alert-color); font-weight: bold; }
+
+        /* Main Layout */
+        #game-container {
+            display: flex;
+            flex: 1;
+            height: calc(100vh - 60px);
+        }
+
+        /* Sidebar - Briefing */
+        #sidebar {
+            width: 250px;
+            background: var(--panel-bg);
+            border-right: 2px dashed var(--ui-color);
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            z-index: 101;
+            overflow-y: auto;
+            font-size: 0.85rem; 
+        }
+
+        @media (max-width: 900px) {
+            #game-container { flex-direction: column; }
+            #sidebar {
+                width: 100%;
+                height: 120px;
+                flex-direction: row;
+                border-right: none;
+                border-bottom: 2px dashed var(--ui-color);
+                padding: 10px;
+                overflow-x: auto;
+                overflow-y: hidden;
+                box-sizing: border-box;
+                flex-shrink: 0;
+            }
+            .profile-pic { transform: scale(0.7); }
+        }
+
+        .profile-pic {
+            width: 90px;
+            height: 90px;
+            background: #000;
+            border: 2px solid var(--ui-color);
+            margin: 0 auto 10px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            overflow: hidden;
+            border-radius: 0;
+            image-rendering: pixelated;
+            box-shadow: 0 0 5px rgba(0,255,0,0.5);
+            padding: 5px; 
+            box-sizing: border-box;
+        }
+        
+        #wanted-pic .sprite-container { margin: auto; }
+
+        .suspect-details h3 { 
+            color: var(--ui-color); 
+            text-decoration: underline; 
+            margin-bottom: 8px; 
+            font-size: 1rem; 
+        }
+        .suspect-details p { margin-bottom: 8px; line-height: 1.2; }
+        .suspect-list { list-style: none; padding: 0; margin-top: 0; }
+        .suspect-list li { margin-bottom: 3px; font-weight: bold; color: #ddd; line-height: 1.2; }
+        
+        /* Camera Grid - 3x3 */
+        #camera-grid {
+            flex: 1;
+
+display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(3, 1fr);
+            gap: 2px;
+            background: #000;
+            padding: 2px;
+            position: relative;
+            border: 5px inset #444;
+            image-rendering: pixelated;
+        }
+
+        .camera-feed {
+            position: relative;
+            overflow: hidden;
+            border: 1px solid #333;
+            cursor: pointer;
+            image-rendering: pixelated;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
+            background-color: #2e2e2e; /* Fondo de fallback */
+            /* Propiedad CSS para los fondos generados dinámicamente */
+            background-size: cover;
+        }
+
+        /* --- ESTILOS DE FONDOS ABSTRACTOS DE ESCUELA --- */
+
+        /* CAM 1: Pasillo de Taquillas */
+        .bg-lockers {
+            background-color: #3f51b5; /* Azul oscuro de pared */
+            background-image: 
+                /* Taquillas Verticales */
+                repeating-linear-gradient(to right, 
+                    #4466cc 0, #4466cc 18%, 
+                    #3355aa 18%, #3355aa 20% /* Líneas divisorias */
+                ),
+                /* Detalles de Taquillas */
+                repeating-linear-gradient(to top, 
+                    #4466cc 0, #4466cc 10%, 
+                    transparent 10%, transparent 11% /* Líneas horizontales */
+                );
+            background-size: 100% 100%;
+        }
+
+        /* CAM 2: Piso de Aula */
+        .bg-classroom-floor {
+            background-color: #795548; /* Marrón para el piso */
+            background-image: 
+                /* Patrón de Mosaico Simple */
+                linear-gradient(45deg, #8d6e63 25%, transparent 25%),
+                linear-gradient(-45deg, #8d6e63 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, #8d6e63 75%),
+                linear-gradient(-45deg, transparent 75%, #8d6e63 75%);
+            background-size: 30px 30px; /* Tamaño del mosaico */
+            background-position: 0 0, 0 15px, 15px -15px, -15px 0px;
+        }
+        
+        /* CAM 3: Pared de Ladrillo (Exterior/Gimnasio) */
+        .bg-brick-wall {
+            background-color: #b71c1c; /* Ladrillo rojo base */
+            background-image:
+                /* Líneas horizontales de mortero */
+                repeating-linear-gradient(to bottom, 
+                    #d5d5d5 0, #d5d5d5 2px, 
+                    #b71c1c 2px, #b71c1c 30px
+                ),
+                /* Líneas verticales de mortero con offset */
+                repeating-linear-gradient(to right, 
+                    #d5d5d5 0, #d5d5d5 2px, 
+                    transparent 2px, transparent 15px
+                );
+            background-size: 100% 30px, 30px 100%;
+            background-position: 0 0, 15px 0; /* Desfase para simular ladrillos */
+        }
+
+        /* CAM 4: Estantería de Biblioteca */
+        .bg-bookshelves {
+            background-color: #5d4037; /* Madera oscura */
+            background-image: 
+                /* Estantes horizontales */
+                linear-gradient(to bottom, 
+                    #795548 0, #795548 5px, 
+                    transparent 5px, transparent 30% /* Espacio entre estantes */
+                ),
+                /* Bloques de libros (simulación de muchos colores) */
+                repeating-linear-gradient(90deg, 
+                    #f44336 0, #f44336 2%, 
+                    #4caf50 2%, #4caf50 4%,
+                    #2196f3 4%, #2196f3 6%,
+                    #ffeb3b 6%, #ffeb3b 8%,
+                    #9c27b0 8%, #9c27b0 10%
+                );
+            background-size: 100% 100%, 100% 100%;
+            background-position: 0 0, 0 5px; /* Los libros encima de los estantes */
+
+}
+        
+        /* CAM 5: Tablero de Ajedrez (Sala Común/Club) */
+        .bg-checkerboard {
+            background-color: #eeeeee; /* Cuadrado claro */
+            background-image: 
+                /* Patrón de cuadrados */
+                linear-gradient(45deg, #9e9e9e 25%, transparent 25%), 
+                linear-gradient(-45deg, #9e9e9e 25%, transparent 25%), 
+                linear-gradient(45deg, transparent 75%, #9e9e9e 75%), 
+                linear-gradient(-45deg, transparent 75%, #9e9e9e 75%);
+            background-size: 50px 50px; /* Tamaño del cuadrado */
+        }
+
+        /* CAM 6: Ventana y Sombra (Aula soleada) */
+        .bg-window-shadow {
+            background-color: #64b5f6; /* Fondo azul claro (cielo) */
+            background-image: 
+                /* Borde de ventana */
+                linear-gradient(to right, #333 0, #333 10px, transparent 10px, transparent 90%, #333 90%, #333 100%),
+                linear-gradient(to bottom, #333 0, #333 10px, transparent 10px, transparent 90%, #333 90%, #333 100%),
+                /* Sombra interior */
+                linear-gradient(135deg, rgba(0,0,0,0.3) 0, transparent 40%);
+            background-size: 100% 100%;
+        }
+
+        /* CAM 7: Piso de Gimnasio (Líneas Deportivas) */
+        .bg-gym-floor {
+            background-color: #ff9800; /* Color de la cancha */
+            background-image: 
+                /* Líneas del campo */
+                linear-gradient(to right, #ffffff 0, #ffffff 2px, transparent 2px, transparent 100px),
+                linear-gradient(to bottom, #ffffff 0, #ffffff 2px, transparent 2px, transparent 150px);
+            background-size: 100% 100%;
+        }
+
+        /* CAM 8: Pared de azulejos (Baño/Cafetería) */
+        .bg-tiles {
+            background-color: #cfd8dc; /* Azulejo claro */
+            background-image:
+                /* Patrón de Azulejos */
+                linear-gradient(to right, #455a64 1px, transparent 1px),
+                linear-gradient(to bottom, #455a64 1px, transparent 1px);
+            background-size: 25px 25px;
+        }
+
+        /* CAM 9: Tablero de Corcho (Avisos) */
+        .bg-corkboard {
+            background-color: #ccac00; /* Color corcho */
+            background-image: 
+                /* Simulación de un pin/aviso */
+                radial-gradient(circle at 10% 15%, #ff3333 3px, transparent 3px),
+                radial-gradient(circle at 80% 60%, #0000ff 3px, transparent 3px);
+            background-size: 100% 100%;
+        }
+
+        /* Etiqueta de Cámara */
+        .cam-label {
+            position: absolute;
+            top: 3px; left: 3px;
+            background: rgba(0,0,0,0.7);
+            padding: 2px 5px;
+            font-size: 0.7rem;
+            pointer-events: none;
+            border: 1px solid var(--ui-color);
+            white-space: nowrap;
+            z-index: 51;
+        }
+
+        .rec-dot {
+            display: inline-block;
+            width: 6px; height: 6px;
+            background-color: var(--alert-color);
+            border-radius: 0;
+            margin-right: 3px;
+            animation: blink 1s infinite step-end;
+        }
+
+        @keyframes blink {
+            50% { opacity: 0; }
+        }
+
+        /* Characters - Pixel Sprite detallado */
+        .student {
+            position: absolute;
+            width: 20px; 
+            height: 32px; 
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-end;
+            transition: transform 0.1s linear, filter 0.1s;
+            cursor: pointer;
+            z-index: 10;
+            image-rendering: pixelated;
+            transform: scale(1.5); 
+        }
+        
+        .student:hover {
+            filter: drop-shadow(0 0 5px var(--ui-color)) brightness(1.2);
+            transform: scale(2.5); 
+            z-index: 60;
+        }
+
+.sprite-container {
+            position: absolute;
+            bottom: 0;
+            width: 16px; 
+            height: 30px; 
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-end;
+        }
+
+        .sprite-head {
+            position: relative;
+            width: 10px; 
+            height: 10px;
+            margin-bottom: -1px;
+            border-radius: 0;
+            box-shadow: 0 0 0 1px #000;
+            z-index: 3;
+            background: linear-gradient(to bottom, currentColor 50%, transparent 50%);
+        }
+        
+        .sprite-hair {
+            position: absolute;
+            top: -2px; left: -1px;
+            width: 12px; height: 6px;
+            background: var(--hair-color);
+            border-radius: 0;
+            z-index: 4;
+            box-shadow: 1px 1px 0 0 #000;
+        }
+        
+        .sprite-face {
+            position: absolute;
+            top: 2px; left: 2px;
+            width: 6px; height: 6px;
+            background-color: var(--skin-color);
+            border: 1px solid #000;
+            border-radius: 0;
+            z-index: 5;
+        }
+
+        .sprite-body {
+            position: relative;
+            width: 12px; height: 12px;
+            background-color: var(--shirt-color);
+            border-radius: 0;
+            box-shadow: 0 0 0 1px #000;
+            margin-bottom: -1px;
+            z-index: 2;
+        }
+
+        .sprite-body::before, .sprite-body::after {
+            content: ''; position: absolute; top: 3px;
+            width: 3px; height: 6px;
+            background-color: var(--shirt-color);
+            border-radius: 0;
+            box-shadow: 0 0 0 1px #000;
+            z-index: 1;
+        }
+        .sprite-body::before { left: -3px; }
+        .sprite-body::after { right: -3px; }
+        
+        .sprite-body-hand-l, .sprite-body-hand-r {
+            position: absolute; top: 9px;
+            width: 2px; height: 2px;
+            background-color: var(--skin-color);
+            border-radius: 0;
+            box-shadow: 0 0 0 1px #000;
+            z-index: 2;
+        }
+        .sprite-body-hand-l { left: -5px; }
+        .sprite-body-hand-r { right: -5px; }
+
+        .sprite-legs {
+            width: 12px; height: 8px;
+            display: flex; justify-content: space-around;
+            position: relative; overflow: hidden; z-index: 1;
+        }
+
+        .leg {
+            width: 5px; height: 100%;
+            background-color: var(--pants-color);
+            border-radius: 0;
+            box-shadow: 0 0 0 1px #000;
+        }
+        
+        .acc-hat-block {
+            position: absolute; top: -5px;
+            width: 12px; height: 4px;
+            background-color: #333; 
+            border-radius: 0;
+            box-shadow: 0 0 0 1px #000;
+            z-index: 5;
+        }
+
+        .acc-visor {
+            position: absolute; top: 2px;
+            width: 10px; height: 2px;
+            background-color: var(--alert-color); 
+            border-radius: 0;
+            z-index: 6;
+        }
+        
+        .acc-glasses-line {
+            position: absolute; top: 4px;
+            width: 10px; height: 1px;
+            background-color: #000;
+            z-index: 6;
+        }
+
+        /* Animación de caminar */
+        .walking .sprite-legs .leg:nth-child(1) { animation: walkAnimLeft 0.5s infinite alternate steps(1); }
+        .walking .sprite-legs .leg:nth-child(2) { animation: walkAnimRight 0.5s infinite alternate steps(1); }
+        @keyframes walkAnimLeft { from { transform: translateY(1px); } to { transform: translateY(-1px); } }
+        @keyframes walkAnimRight { from { transform: translateY(-1px); } to { transform: translateY(1px); } }
+
+        /* Modals */
+        #modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.9); display: flex;
+            justify-content: center; align-items: center; z-index: 200;
+        }
+
+.modal-content {
+            background: var(--panel-bg);
+            border: 3px solid var(--ui-color);
+            box-shadow: 0 0 15px var(--ui-color);
+            padding: 30px; text-align: center; max-width: 550px;
+            width: 90%; position: relative; border-radius: 0;
+        }
+
+        .modal-content h1 {
+            color: var(--ui-color); font-size: 2rem; margin-bottom: 15px;
+            text-transform: uppercase; letter-spacing: 2px;
+            text-shadow: 0 0 5px var(--ui-color);
+        }
+
+        .modal-content p { color: #ddd; margin-bottom: 20px; font-size: 1rem; line-height: 1.4; }
+        
+        button {
+            background: var(--ui-color); color: #000;
+            border: 2px solid var(--ui-color); padding: 10px 20px;
+            font-family: var(--ui-font); font-weight: bold; font-size: 1rem;
+            cursor: pointer; text-transform: uppercase; letter-spacing: 1px;
+            transition: background 0.1s; box-shadow: 0 0 5px var(--ui-color);
+            border-radius: 0;
+        }
+        button:hover { background: #008800; color: #fff; box-shadow: 0 0 10px #008800; }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="level-info">NIVEL: <span id="level-display">1</span></div>
+        <div class="logo">OPERACIÓN OJO DE ÁGUILA | MÓDULO DE VIGILANCIA</div>
+        <!-- El temporizador ahora mostrará la cuenta regresiva --><div class="timer" id="timer-display">00:00</div>
+    </header>
+
+    <div id="game-container">
+        <!-- Sidebar Briefing --><aside id="sidebar">
+            <div class="suspect-details">
+                <h3>FICHA DE SOSPECHOSO</h3>
+                <p>Objetivo Prioritario (OP):</p>
+                <div class="profile-pic" id="wanted-pic"></div>
+                <ul class="suspect-list" id="clue-list">
+                    <!-- Clues injected here --></ul>
+            </div>
+            <div style="margin-top: auto; font-size: 0.7rem; opacity: 0.8; text-align: center; color: #aaa;">
+                ESTADO: VIGILANCIA ACTIVA (9 CANALES)
+            </div>
+        </aside>
+
+        <!-- Cameras - 9 Cámaras --><main id="camera-grid">
+            <!-- Fila 1 --><div class="camera-feed" id="cam-0">
+                <div class="cam-label"><span class="rec-dot"></span>PASILLO (Taquillas)</div>
+            </div>
+            <div class="camera-feed" id="cam-1">
+                <div class="cam-label"><span class="rec-dot"></span>AULA 101 (Piso)</div>
+            </div>
+            <div class="camera-feed" id="cam-2">
+                <div class="cam-label"><span class="rec-dot"></span>PATIO (Ladrillo)</div>
+            </div>
+            <!-- Fila 2 --><div class="camera-feed" id="cam-3">
+                <div class="cam-label"><span class="rec-dot"></span>BIBLIOTECA (Estantes)</div>
+            </div>
+            <div class="camera-feed" id="cam-4">
+                <div class="cam-label"><span class="rec-dot"></span>SALA COMÚN (Ajedrez)</div>
+            </div>
+            <div class="camera-feed" id="cam-5">
+                <div class="cam-label"><span class="rec-dot"></span>OFICINA (Ventana)</div>
+            </div>
+            <!-- Fila 3 --><div class="camera-feed" id="cam-6">
+                <div class="cam-label"><span class="rec-dot"></span>GIMNASIO (Cancha)</div>
+            </div>
+            <div class="camera-feed" id="cam-7">
+                <div class="cam-label"><span class="rec-dot"></span>CAFETERÍA (Azulejos)</div>
+            </div>
+            <div class="camera-feed" id="cam-8">
+                <div class="cam-label"><span class="rec-dot"></span>TABLÓN DE ANUNCIOS</div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Start/End Modal --><div id="modal-overlay">
+        <div class="modal-content" id="start-modal">
+<h1>OPERACIÓN OJO DE ÁGUILA</h1>
+            <p>Agente, estás en el Cinturón de Sombra. Hemos localizado al Objetivo Primario (OP) en el complejo. Tu acceso es a través de 9 cámaras de vigilancia perimetral.</p>
+            <p>Identifica y neutraliza al OP antes de que se desvanezca en la multitud y la ventana de oportunidad se cierre.</p>
+            <!-- Nota importante sobre el tiempo --><p style="color:var(--alert-color); font-weight: bold;">¡ALERTA CRÍTICA! El temporizador está activo y es tu única ventana de acción. Si llega a cero, la misión es abortada.</p>
+            <button onclick="startGame()">INICIAR INFILTRACIÓN</button>
+        </div>
+
+        <div class="modal-content hidden" id="success-modal">
+            <h1 style="color: var(--ui-color); text-shadow: 0 0 5px var(--ui-color);">¡OBJETIVO CAPTURADO!</h1>
+            <p>Buen trabajo, agente. El sospechoso ha sido detenido. Tus ojos de pixel lo encontraron.</p>
+            <p>Prepárate, el siguiente caso será más complejo.</p>
+            <button onclick="nextLevel()">SIGUIENTE NIVEL</button>
+        </div>
+
+        <div class="modal-content hidden" id="fail-modal">
+            <h1 style="color: var(--alert-color); text-shadow: 0 0 5px var(--alert-color);">MISIÓN FALLIDA</h1>
+            <p id="fail-reason">El objetivo escapó de la zona de vigilancia.</p>
+            <button onclick="resetGame()">REINTENTAR</button>
+        </div>
+        
+        <!-- Custom Alert Modal (replaces browser alert) --><div class="modal-content hidden" id="alert-modal" style="max-width: 400px; padding: 20px;">
+            <h2 style="color:var(--alert-color); margin-bottom: 10px;">¡ALERTA!</h2>
+            <p id="alert-message" style="margin-bottom: 20px; font-size: 1rem;"></p>
+            <button onclick="closeAlert()" style="padding: 10px 20px; font-size: 1rem;">CERRAR</button>
+        </div>
+    </div>
+
+    <script>
+        // Game Configuration
+        const SHIRT_COLORS = ['#FF0000', '#00FF00', '#0000FF', '#FFFF00', '#FF00FF', '#00FFFF', '#FFFFFF', '#1E90FF', '#FF4500', '#800080', '#000000']; 
+        const PANTS_COLORS = ['#333333', '#8B4513', '#000080', '#228B22', '#800000', '#4682B4', '#556B2F', '#000000']; 
+        const HAIR_COLORS = ['#555555', '#A0522D', '#FFD700', '#800080', '#483D8B', '#000000', '#8B4513']; 
+        const SKIN_COLORS = ['#D2B48C', '#FFDEAD', '#F0E68C', '#A0522D']; 
+        
+        const HATS = ['Gorra', 'Visor', 'Sombrero', 'Ninguno', 'Ninguno', 'Ninguno', 'Ninguno'];
+        const GLASSES = ['Lentes Redondos', 'Visor Delgado', 'Ninguno', 'Ninguno', 'Ninguno', 'Ninguno'];
+        
+        const CAMERAS = 9; 
+
+        // Configuración de dificultad
+        const MAX_TIME_SECONDS = 60; // El juego comienza con 60 segundos
+        const BASE_STUDENTS = 25;    // Nivel 1 comienza con 25 estudiantes
+        const LEVEL_MULTIPLIER = 5;  // Añade 5 estudiantes por nivel (ej: Nivel 2 tiene 30, Nivel 3 tiene 35)
+        const MAX_STUDENTS_INCREASE = 75; // Límite de aumento (máx 100 estudiantes total)
+
+
+        // NOMBRES DE CLASES CSS para los fondos temáticos 
+        const PIXEL_BACKGROUND_CLASSES = [
+            'bg-lockers',          
+            'bg-classroom-floor',  
+            'bg-brick-wall',       
+            'bg-bookshelves',      
+            'bg-checkerboard',     
+            'bg-window-shadow',    
+            'bg-gym-floor',        
+            'bg-tiles',            
+            'bg-corkboard'         
+        ];
+
+
+        // Nombres descriptivos para la UI
+        const COLOR_NAMES = {
+            '#FF0000': 'Rojo', '#00FF00': 'Verde Lima', '#0000FF': 'Azul',
+            '#FFFF00': 'Amarillo', '#FF00FF': 'Fucsia', '#00FFFF': 'Cian',
+            '#FFFFFF': 'Blanco', '#000000': 'Negro', '#1E90FF': 'Azul Vivo',
+            '#FF4500': 'Naranja', '#800080': 'Púrpura',
+            '#333333': 'Gris Oscuro', '#8B4513': 'Marrón Oscuro', '#000080': 'Azul Marino',
+            '#228B22': 'Verde Militar', '#800000': 'Granate', '#4682B4': 'Azul Acero',
+            '#556B2F': 'Verde Oliva'
+        };
+
+const HAIR_NAMES = {
+            '#555555': 'Gris Oscuro', '#A0522D': 'Marrón Café', '#FFD700': 'Rubio',
+            '#800080': 'Púrpura', '#483D8B': 'Azul Marino', '#000000': 'Negro', '#8B4513': 'Marrón Claro'
+        };
+        
+        let gameState = {
+            level: 1,
+            score: 0,
+            timer: MAX_TIME_SECONDS, // Inicializa el temporizador a la cuenta máxima
+            isPlaying: false,
+            target: null,
+            students: [],
+            interval: null,
+            alertActive: false,
+        };
+
+        // DOM Elements
+        const timerDisplay = document.getElementById('timer-display');
+        const levelDisplay = document.getElementById('level-display');
+        const clueList = document.getElementById('clue-list');
+        const wantedPic = document.getElementById('wanted-pic');
+        const modalOverlay = document.getElementById('modal-overlay');
+        const alertModal = document.getElementById('alert-modal');
+
+        const camContainers = [];
+        for(let i=0; i<CAMERAS; i++) {
+            camContainers.push(document.getElementById(cam-${i}));
+        }
+
+        class Student {
+            constructor(id, isTarget) {
+                this.id = id;
+                this.isTarget = isTarget;
+                
+                // Random Attributes 
+                this.shirtColor = SHIRT_COLORS[Math.floor(Math.random() * SHIRT_COLORS.length)];
+                this.pantsColor = PANTS_COLORS[Math.floor(Math.random() * PANTS_COLORS.length)];
+                this.hairColor = HAIR_COLORS[Math.floor(Math.random() * HAIR_COLORS.length)];
+                this.skinColor = SKIN_COLORS[Math.floor(Math.random() * SKIN_COLORS.length)];
+                this.hat = HATS[Math.floor(Math.random() * HATS.length)];
+                this.glasses = GLASSES[Math.floor(Math.random() * GLASSES.length)];
+                
+                // Movement
+                this.camIndex = Math.floor(Math.random() * CAMERAS);
+                this.x = Math.random() * 80 + 10; // %
+                this.y = Math.random() * 70 + 10; // %
+                this.speedBase = 0.3 + (gameState.level * 0.08); 
+                this.vx = (Math.random() - 0.5) * this.speedBase; 
+                this.vy = (Math.random() - 0.5) * this.speedBase;
+                
+                this.element = this.createDOM();
+            }
+
+            createDOM() {
+                const div = document.createElement('div');
+                div.className = 'student walking';
+                div.id = student-${this.id};
+                
+                // Custom CSS variables for easier styling of nested elements
+                div.style.setProperty('--shirt-color', this.shirtColor);
+                div.style.setProperty('--pants-color', this.pantsColor);
+                div.style.setProperty('--hair-color', this.hairColor);
+                div.style.setProperty('--skin-color', this.skinColor);
+
+                // Construct HTML structure for DETAILED PIXEL SPRITE
+                let accessoryHTML = '';
+                if (this.hat === 'Gorra' || this.hat === 'Sombrero') {
+                    accessoryHTML += <div class="acc-hat-block" style="background-color: ${this.hat === 'Gorra' ? '#555' : '#8B4513'}"></div>;
+                }
+                if (this.hat === 'Visor') {
+                    accessoryHTML += <div class="acc-visor"></div>;
+                }
+                
+                if (this.glasses === 'Visor Delgado' || this.glasses === 'Lentes Redondos') {
+                    accessoryHTML += <div class="acc-glasses-line"></div>;
+                }
+
+
+                let html = `
+                    <div class="sprite-container">
+                        <div class="sprite-head" style="color: ${this.skinColor}">
+                            <div class="sprite-hair"></div>
+
+<div class="sprite-face"></div>
+                            ${accessoryHTML}
+                        </div>
+                        <div class="sprite-body">
+                            <span class="sprite-body-hand-l"></span>
+                            <span class="sprite-body-hand-r"></span>
+                        </div>
+                        <div class="sprite-legs">
+                            <div class="leg"></div>
+                            <div class="leg"></div>
+                        </div>
+                    </div>
+                `;
+                
+                div.innerHTML = html;
+                
+                // Initial Position
+                div.style.left = this.x + '%';
+                div.style.top = this.y + '%';
+                if(window.innerWidth <= 900) {
+                     div.style.transform = 'scale(1.5)';
+                }
+
+
+                // Click Event
+                div.onclick = (e) => {
+                    e.stopPropagation();
+                    checkSuspect(this);
+                };
+
+                return div;
+            }
+
+            update() {
+                // Move (Mismo movimiento)
+                this.x += this.vx;
+                this.y += this.vy;
+
+                // Bounce off walls
+                if (this.x <= 5 || this.x >= 85) this.vx *= -1;
+                if (this.y <= 15 || this.y >= 80) this.vy *= -1;
+
+                // Randomly change direction
+                if (Math.random() < 0.015) { 
+                    this.vx = (Math.random() - 0.5) * this.speedBase;
+                    this.vy = (Math.random() - 0.5) * this.speedBase;
+                }
+                
+                // Inter-Camera Movement (Mismo comportamiento)
+                // El objetivo se mueve menos a menudo para darle al jugador una oportunidad
+                if (this.isTarget && Math.random() < 0.003) { 
+                    this.changeCamera();
+                } else if (!this.isTarget && Math.random() < 0.005) { 
+                    this.changeCamera();
+                }
+
+                // Update DOM
+                this.element.style.left = this.x + '%';
+                this.element.style.top = this.y + '%';
+                // Z-index for layering effect (vertical positioning)
+                this.element.style.zIndex = Math.floor(this.y) + (this.isTarget ? 30 : 0);
+            }
+            
+            changeCamera() {
+                const oldCamIndex = this.camIndex;
+                let newCamIndex = Math.floor(Math.random() * CAMERAS);
+                
+                while (newCamIndex === oldCamIndex) {
+                    newCamIndex = Math.floor(Math.random() * CAMERAS);
+                }
+
+                if (camContainers[oldCamIndex].contains(this.element)) {
+                    camContainers[oldCamIndex].removeChild(this.element);
+                }
+                
+                this.camIndex = newCamIndex;
+                camContainers[newCamIndex].appendChild(this.element);
+                
+                // Randomize entry position
+                const entrySide = Math.floor(Math.random() * 4);
+                
+                if (entrySide === 0) { this.x = Math.random() * 80 + 10; this.y = 15; this.vy = Math.abs(this.vy); }
+                else if (entrySide === 1) { this.x = 85; this.y = Math.random() * 65 + 15; this.vx = -Math.abs(this.vx); }
+                else if (entrySide === 2) { this.x = Math.random() * 80 + 10; this.y = 75; this.vy = -Math.abs(this.vy); }
+                else { this.x = 10; this.y = Math.random() * 65 + 15; this.vx = Math.abs(this.vx); }
+                
+                this.element.style.left = this.x + '%';
+                this.element.style.top = this.y + '%';
+            }
+        }
+
+        function updateClues(target) {
+clueList.innerHTML = 
+                <li>CAMISA: ${COLOR_NAMES[target.shirtColor]}</li>
+                <li>PANTALÓN: ${COLOR_NAMES[target.pantsColor]}</li>
+                <li>PELO: ${HAIR_NAMES[target.hairColor] || 'Normal'}</li>
+                <li>SOMBRERO: ${target.hat}</li>
+                <li>LENTES: ${target.glasses === 'Ninguno' ? 'No' : 'Sí'}</li>
+            ;
+            
+            // Generate Sprite for wanted pic
+            wantedPic.innerHTML = '';
+            const targetSprite = target.element.cloneNode(true);
+            
+            // Adjust scale for the profile pic view
+            targetSprite.classList.remove('walking');
+            targetSprite.style.position = 'relative';
+            targetSprite.style.transform = 'scale(2.5)'; 
+            targetSprite.style.left = 'unset';
+            targetSprite.style.top = 'unset';
+            
+            const spriteContainer = targetSprite.querySelector('.sprite-container');
+            if(spriteContainer) spriteContainer.style.bottom = '0';
+            
+            wantedPic.appendChild(targetSprite);
+        }
+
+        function clearStudents() {
+            gameState.students.forEach(s => s.element.remove());
+            gameState.students = [];
+        }
+
+        function setupLevel() {
+            // 1. Clear previous state
+            clearStudents();
+            
+            // 2. Setup Backgrounds (Apply CSS classes)
+            camContainers.forEach((cam, index) => {
+                // Remove previous background classes (if any)
+                cam.className = 'camera-feed';
+                // Add the appropriate class for the new theme
+                cam.classList.add(PIXEL_BACKGROUND_CLASSES[index]);
+            });
+            
+            // Reset timer
+            gameState.timer = MAX_TIME_SECONDS;
+            updateTimer();
+
+            // 3. Create Students
+            const studentIncrease = Math.min(gameState.level * LEVEL_MULTIPLIER, MAX_STUDENTS_INCREASE);
+            const numStudents = BASE_STUDENTS + studentIncrease;
+
+            console.log(Nivel ${gameState.level}: ${numStudents} estudiantes en total.);
+            
+            let targetIndex = Math.floor(Math.random() * numStudents);
+            
+            for (let i = 0; i < numStudents; i++) {
+                const isTarget = (i === targetIndex);
+                const student = new Student(i, isTarget);
+                
+                // Add to initial camera
+                camContainers[student.camIndex].appendChild(student.element);
+                gameState.students.push(student);
+
+                if (isTarget) {
+                    gameState.target = student;
+                }
+            }
+
+            // 4. Update UI with Clues
+            updateClues(gameState.target);
+            levelDisplay.textContent = gameState.level;
+            
+            // 5. Hide Modals and Start Game Loop
+            modalOverlay.classList.add('hidden');
+            document.getElementById('start-modal').classList.add('hidden');
+            document.getElementById('success-modal').classList.add('hidden');
+            document.getElementById('fail-modal').classList.add('hidden');
+            gameState.isPlaying = true;
+
+            if (gameState.interval) clearInterval(gameState.interval);
+            // Game Loop runs at 60 FPS (1000ms / 60 frames)
+            let frameCounter = 0;
+            gameState.interval = setInterval(() => {
+                gameLoop();
+                frameCounter++;
+                if (frameCounter % 60 === 0) {
+                    // One second passed
+                    gameState.timer--; // DECREMENTA EL TIEMPO
+                    updateTimer();
+                    frameCounter = 0;
+
+                    // Game over condition (Timer hits zero)
+                    if (gameState.timer <= 0) {
+                        endGame(false, '¡Se acabó el tiempo! El sospechoso escapó.');
+                        return;
+                    }
+                }
+            }, 1000 / 60);
+        }
+
+function startGame() {
+            gameState.level = 1;
+            setupLevel();
+        }
+
+        function nextLevel() {
+            gameState.level++;
+            setupLevel();
+            document.getElementById('success-modal').classList.add('hidden');
+        }
+
+        function resetGame() {
+            gameState.level = 1;
+            setupLevel();
+            document.getElementById('fail-modal').classList.add('hidden');
+        }
+
+        function updateTimer() {
+            // Asegura que el tiempo no sea negativo
+            const remainingTime = Math.max(0, gameState.timer); 
+            const minutes = String(Math.floor(remainingTime / 60)).padStart(2, '0');
+            const seconds = String(remainingTime % 60).padStart(2, '0');
+            timerDisplay.textContent = ${minutes}:${seconds};
+        }
+
+        function gameLoop() {
+            if (!gameState.isPlaying) return;
+
+            // Update student positions and logic
+            gameState.students.forEach(student => student.update());
+        }
+
+        function checkSuspect(student) {
+            if (!gameState.isPlaying || gameState.alertActive) return;
+
+            if (student.isTarget) {
+                // Find the cam index for the success message
+                let camIndex = student.camIndex + 1;
+                endGame(true, ¡Objetivo capturado en la CAM ${camIndex}!);
+            } else {
+                // Simplified failure for now
+                endGame(false, Objetivo Incorrecto. El sospechoso escapó en la confusión.);
+            }
+        }
+
+        function endGame(success, message) {
+            gameState.isPlaying = false;
+            if (gameState.interval) clearInterval(gameState.interval);
+
+            modalOverlay.classList.remove('hidden');
+            if (success) {
+                document.getElementById('success-modal').classList.remove('hidden');
+            } else {
+                document.getElementById('fail-reason').textContent = message;
+                document.getElementById('fail-modal').classList.remove('hidden');
+            }
+        }
+
+        function showAlert(message) {
+            if (gameState.alertActive) return;
+            gameState.alertActive = true;
+            document.getElementById('alert-message').textContent = message;
+            alertModal.classList.remove('hidden');
+            modalOverlay.classList.remove('hidden'); // Ensure overlay is visible
+        }
+
+        function closeAlert() {
+            gameState.alertActive = false;
+            alertModal.classList.add('hidden');
+            // Only hide overlay if no other modal is visible
+            if (document.getElementById('start-modal').classList.contains('hidden') &&
+                document.getElementById('success-modal').classList.contains('hidden') &&
+                document.getElementById('fail-modal').classList.contains('hidden')) {
+                modalOverlay.classList.add('hidden');
+            }
+        }
+
+        // Initial setup on window load
+        window.onload = () => {
+             // Initial check to ensure the start modal is visible if the game hasn't started
+             if (!gameState.isPlaying) {
+                modalOverlay.classList.remove('hidden');
+                document.getElementById('start-modal').classList.remove('hidden');
+             }
+        };
+
+        // Initialize display
+        updateTimer();
+        levelDisplay.textContent = gameState.level;
+
+    </script>
+</body>
+</html>
